@@ -1,0 +1,13 @@
+Notes:
+
+7/12/2023
+I'm deciding to store relative coordinates from -8 to 108 for now in 
+the Asteroid objects. When drawing them, I will convert them to absolute
+coordinates depending on specific canvas pixel position and a scaling factor.
+
+Scaling factors:
+    For Asteroid: 2 ** asteroid.size;
+    For Ship: 1
+
+The Scaling factor will determine how many relative length units a side 
+lenght of a bounding box of the object's length should take up.
