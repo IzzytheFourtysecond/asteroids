@@ -17,12 +17,20 @@ const canvas = (function() {
 const Asteroid = (function() {
 
     /* This function will always generate an irregular dodecagon. 
-        The average radius scaling factor will be 0.6. However, 
+        The average radius scaling factor will be 0.3. However, 
         the random number is generated such as to make the 
-        dodecagon hopefully more spikey.*/
+        dodecagon hopefully more spikey.
+        The final three entries of the outline array contain, 
+            1. average Radius of hitbox
+            2. x offset of hitbox
+            3. y offset of hitbox */
     function generateOutline() {
         const dTheta = Math.PI / 6;
         const shapeOutline = [];
+
+        let averageRadius = 0;
+        let averageXOffset = 0;
+        let averageYOffset = 0;
 
         let randomScaling, angle;
         for (let turns = 0; turns < 12; ++turns) {
@@ -33,22 +41,47 @@ const Asteroid = (function() {
             // get angle...
             angle = (turns + Math.random() - 0.5) * dTheta;
             // store x-coord...
-            shapeOutline.push((0.5 * randomScaling * Math.cos(angle)) + 0.5);
-            //store y-coord...
-            shapeOutline.push((0.5 * randomScaling * Math.sin(angle)) + 0.5);
+            shapeOutline.push(0.5 * randomScaling * Math.cos(angle));
+            // store y-coord...
+            shapeOutline.push(0.5 * randomScaling * Math.sin(angle));
+
+            // update averages
+            averageRadius = ((randomScaling - averageRadius) / 
+                                (turns + 1)) + averageRadius;
+            averageXOffset = ((shapeOutline[shapeOutline.length - 2] - 
+                    averageXOffset) / (turns + 1)) + averageXOffset;
+            averageYOffset = ((shapeOutline[shapeOutline.length - 1] - 
+                    averageYOffset) / (turns + 1)) + averageYOffset;
         }
 
+        shapeOutline.push(0.5 * averageRadius)
+        shapeOutline.push(averageXOffset);
+        shapeOutline.push(averageYOffset);
         return shapeOutline;
     }
 
     return class Asteroid {
-        constructor(xPos = 0, yPos = 0, xVel = 0, yVel = 0, size = 2) {
+        constructor(xPos = 0, yPos = 0, xVel = 0, yVel = 0, size = 8) {
             this.outline = generateOutline();
+
+            const temp = this.outline;
+            this.hitBox = {
+                yOffset: temp.pop(),
+                xOffset: temp.pop(),
+                radius: temp.pop()
+            };
+
             this.xPos = xPos;
             this.yPos = yPos;
             this.xVel = xVel;
             this.yVel = yVel;
             this.size = size;
+        }
+
+        updateKinematics() {
+            // This accounts for the game area looping right off screen...
+            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
+            this.yPos = ((this.xPos + this.yVel + 124) % 116) - 8;
         }
     }
 })();
@@ -130,6 +163,12 @@ const test = [
         
         canvas.ctx.lineWidth = 6;
         canvas.ctx.strokeStyle = "white";
+        canvas.ctx.stroke();
+
+        canvas.ctx.beginPath();
+        canvas.ctx.strokeStyle = "green";
+        canvas.ctx.arc(a.xPos + (800 * a.hitBox.xOffset), 
+            a.yPos + (800 * a.hitBox.yOffset), a.hitBox.radius * 800, 0, 2*Math.PI);
         canvas.ctx.stroke();
     }
 
