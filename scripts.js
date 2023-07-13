@@ -1,6 +1,8 @@
 "use strict";
 
 /* Define game assets */
+let DEBUG = true;
+
 const canvas = (function() {
     const canvas = document.getElementById("mainCanvas");
     canvas.width = 3750;
@@ -79,9 +81,44 @@ const Asteroid = (function() {
         }
 
         updateKinematics() {
-            // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
-            this.yPos = ((this.xPos + this.yVel + 124) % 116) - 8;
+            /* TEMPORARY */
+            this.xPos += this.xVel;
+            this.yPos += this.yVel;
+
+
+            // // This accounts for the game area looping right off screen...
+            // this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
+            // this.yPos = ((this.xPos + this.yVel + 124) % 116) - 8;
+        }
+
+        // TODO... change drawing and coordinate patterns
+        drawAsteroid() {
+            canvas.ctx.beginPath();
+
+            canvas.ctx.moveTo(
+                this.outline[0] * 800 + this.xPos,
+                this.outline[1] * 800 + this.yPos);
+        
+            for (let i = 1; i < 12; i++) {
+                canvas.ctx.lineTo(
+                    (this.outline[(2*i)] * 800) + this.xPos,
+                    (this.outline[(2*i) + 1] * 800) + this.yPos);
+            }
+            canvas.ctx.closePath();
+        
+            canvas.ctx.lineWidth = 6;
+            canvas.ctx.strokeStyle = "white";
+            canvas.ctx.stroke();
+
+            if (!DEBUG) return;
+
+            canvas.ctx.beginPath();
+            canvas.ctx.strokeStyle = "green";
+            canvas.ctx.arc(this.xPos + (800 * this.hitBox.xOffset), 
+                            this.yPos + (800 * this.hitBox.yOffset), 
+                            this.hitBox.radius * 800, 
+                            0, 2*Math.PI);
+            canvas.ctx.stroke();
         }
     }
 })();
@@ -108,6 +145,23 @@ const handlers = (function() {
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define animations */
 
+function clearScreen() {
+    canvas.ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawNextFrame() {
+    // Asteroids ought to go behind other drawings...
+    spawnedAsteroids.forEach( (asteroid) => {
+        asteroid.drawAsteroid();
+    })
+}
+
+function updateGameState() {
+    spawnedAsteroids.forEach( (asteroid) => {
+        asteroid.updateKinematics();
+    })
+}
+
 function drawStartScreen() {
     canvas.ctx.fillStyle = "red";
     canvas.ctx.font = "225px monospace";
@@ -125,16 +179,15 @@ function drawStartScreen() {
 
 
 
-
-
-
-drawStartScreen();
+//drawStartScreen();
 
 
 // Actual animation...
 setInterval(() => {
-    //TODO...
-}, 34);
+    clearScreen();
+    drawNextFrame();
+    updateGameState();
+}, 17);
 
 
 
@@ -142,35 +195,10 @@ setInterval(() => {
 
 /* Tests... */
 const test = [
-    //0. draw an asteroid
+    //0. create an asteroid...
     function() {
-        const a = new Asteroid(1000, 1000);
-
-        canvas.ctx.beginPath();
-
-        canvas.ctx.moveTo(
-            a.outline[0] * 800 + a.xPos,
-            a.outline[1] * 800 + a.yPos);
-        
-        for (let i = 1; i < 12; i++) {
-            canvas.ctx.lineTo(
-                (a.outline[(2*i)] * 800) + a.xPos,
-                (a.outline[(2*i) + 1] * 800) + a.yPos);
-            canvas.ctx.stroke();
-        }
-
-        canvas.ctx.closePath();
-        
-        canvas.ctx.lineWidth = 6;
-        canvas.ctx.strokeStyle = "white";
-        canvas.ctx.stroke();
-
-        canvas.ctx.beginPath();
-        canvas.ctx.strokeStyle = "green";
-        canvas.ctx.arc(a.xPos + (800 * a.hitBox.xOffset), 
-            a.yPos + (800 * a.hitBox.yOffset), a.hitBox.radius * 800, 0, 2*Math.PI);
-        canvas.ctx.stroke();
+        spawnedAsteroids.push(
+            new Asteroid(1000, 1000, 10, 10)
+        );
     }
-
-
 ]
