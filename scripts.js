@@ -7,8 +7,8 @@ const flags = {
 
 const canvas = (function() {
     const canvas = document.getElementById("mainCanvas");
-    canvas.width = 3750;
-    canvas.height = 4450;
+    canvas.width = 4500;
+    canvas.height = 2700;
     const ctx = canvas.getContext("2d");
     
     return {
@@ -142,9 +142,51 @@ const Player = (function() {
         constructor() {
             this.xPos = 50;
             this.yPos = 50;
+            this.angle = 0;
+            this.xVel = 0;
+            this.yVel = 0;
+            this.xAcc = 0;
+            this.yAcc = 0;
+            this.isAccelerating = false;
+        }
+
+        drawSelf() {
+            let xPos = this.xPos;
+            let yPos = this.yPos;
+            let angle = this.angle;
+
+            // This is to use a rotation matrix...
+            let cosAngle = Math.cos(angle);
+            let sinAngle = Math.sin(angle);
+            let rotateX = (x, y) => (x * cosAngle) - (y * sinAngle);
+            let rotateY = (x, y) => (x * sinAngle) + (y * cosAngle);
+
+            // This draws the main ship body...
+            canvas.ctx.beginPath();
+            canvas.ctx.moveTo(
+                canvas.xPixelsOf(xPos + rotateX(-0.5, 1)),
+                canvas.yPixelsOf(yPos + rotateY(-0.5, 1)));
+            canvas.ctx.lineTo(
+                canvas.xPixelsOf(xPos + rotateX(0, -1)),
+                canvas.yPixelsOf(yPos + rotateY(0, -1)));
+            canvas.ctx.lineTo(
+                canvas.xPixelsOf(xPos + rotateX(0.5, 1)),
+                canvas.yPixelsOf(yPos + rotateY(0.5, 1)));
+            canvas.ctx.moveTo(
+                canvas.xPixelsOf(xPos + rotateX(-0.4, 0.6)),
+                canvas.yPixelsOf(yPos + rotateY(-0.4, 0.6)));
+            canvas.ctx.lineTo(
+                canvas.xPixelsOf(xPos + rotateX(0.4, 0.6)),
+                canvas.yPixelsOf(yPos + rotateY(0.4, 0.6)));
+            
+            canvas.ctx.lineWidth = 6;
+            canvas.ctx.strokeStyle = "white";
+            canvas.ctx.stroke();
         }
     }
 })();
+
+const lives = [];
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define handlers */
@@ -271,5 +313,16 @@ const tests = [
     //1. test actions.initializeAsteroids()...
     function(number) {
         actions.initializeAsteroids(number, 0.05);
+    },
+
+    //2. spawn a player and make it rotate... 
+    function() {
+        const p = new Player();
+        p.drawSelf();
+        setInterval(() => {
+            p.angle += 0.01;
+            actions.clearScreen();
+            p.drawSelf();
+        }, 18)
     }
 ]
