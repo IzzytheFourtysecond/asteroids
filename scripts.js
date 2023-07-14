@@ -1,7 +1,9 @@
 "use strict";
 
 /* Define game assets */
-let DEBUG = true;
+const flags = {
+    DEBUG: true
+}
 
 const canvas = (function() {
     const canvas = document.getElementById("mainCanvas");
@@ -12,7 +14,15 @@ const canvas = (function() {
     return {
         ctx,
         width: canvas.width,
-        height: canvas.height
+        height: canvas.height,
+
+        //convert relative lengths to pixel lengths
+        xPixelsOf(relativeLength) {
+            return (0.01 * relativeLength) * canvas.width;
+        },
+        yPixelsOf(relativeLength) {
+            return (0.01 * relativeLength) * canvas.height;
+        }
     }
 })();
 
@@ -25,7 +35,8 @@ const Asteroid = (function() {
         The final three entries of the outline array contain, 
             1. average Radius of hitbox
             2. x offset of hitbox
-            3. y offset of hitbox */
+            3. y offset of hitbox 
+    */
     function generateOutline() {
         const dTheta = Math.PI / 6;
         const shapeOutline = [];
@@ -63,7 +74,7 @@ const Asteroid = (function() {
     }
 
     return class Asteroid {
-        constructor(xPos = 0, yPos = 0, xVel = 0, yVel = 0, size = 8) {
+        constructor(xPos = 0, yPos = 0, xVel = 0, yVel = 0, size = 16) {
             this.outline = generateOutline();
 
             const temp = this.outline;
@@ -81,28 +92,26 @@ const Asteroid = (function() {
         }
 
         updateKinematics() {
-            /* TEMPORARY */
-            this.xPos += this.xVel;
-            this.yPos += this.yVel;
-
-
-            // // This accounts for the game area looping right off screen...
-            // this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
-            // this.yPos = ((this.xPos + this.yVel + 124) % 116) - 8;
+            // This accounts for the game area looping right off screen...
+            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
+            this.yPos = ((this.yPos + this.yVel + 124) % 116) - 8;
         }
 
-        // TODO... change drawing and coordinate patterns
-        drawAsteroid() {
+        drawSelf() {
+            let xPos = this.xPos;
+            let yPos = this.yPos;
+
             canvas.ctx.beginPath();
 
             canvas.ctx.moveTo(
-                this.outline[0] * 800 + this.xPos,
-                this.outline[1] * 800 + this.yPos);
+                canvas.xPixelsOf((this.outline[0] * this.size) + xPos),
+                canvas.yPixelsOf((this.outline[1] * this.size) + yPos));
         
             for (let i = 1; i < 12; i++) {
                 canvas.ctx.lineTo(
-                    (this.outline[(2*i)] * 800) + this.xPos,
-                    (this.outline[(2*i) + 1] * 800) + this.yPos);
+                    canvas.xPixelsOf((this.outline[2*i] * this.size) + xPos),
+                    canvas.yPixelsOf((this.outline[(2*i) + 1] * this.size) 
+                                                                    + yPos));
             }
             canvas.ctx.closePath();
         
@@ -110,14 +119,17 @@ const Asteroid = (function() {
             canvas.ctx.strokeStyle = "white";
             canvas.ctx.stroke();
 
-            if (!DEBUG) return;
+            if (!flags.DEBUG) return;
 
             canvas.ctx.beginPath();
             canvas.ctx.strokeStyle = "green";
-            canvas.ctx.arc(this.xPos + (800 * this.hitBox.xOffset), 
-                            this.yPos + (800 * this.hitBox.yOffset), 
-                            this.hitBox.radius * 800, 
-                            0, 2*Math.PI);
+            canvas.ctx.ellipse(
+                canvas.xPixelsOf(xPos + (this.size * this.hitBox.xOffset)), 
+                canvas.yPixelsOf(yPos + (this.size * this.hitBox.yOffset)), 
+                canvas.xPixelsOf(this.hitBox.radius * this.size),
+                canvas.yPixelsOf(this.hitBox.radius * this.size), 
+                0,
+                0, 2*Math.PI);
             canvas.ctx.stroke();
         }
     }
@@ -125,7 +137,16 @@ const Asteroid = (function() {
 
 const spawnedAsteroids = [];
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+const Player = (function() {
+    return class Player {
+        constructor() {
+            this.xPos = 50;
+            this.yPos = 50;
+        }
+    }
+})();
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define handlers */
 const handlers = (function() {
     const body = document.getElementsByTagName("body")[0];
@@ -142,63 +163,113 @@ const handlers = (function() {
 })();
 
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define animations */
 
-function clearScreen() {
-    canvas.ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
+const actions = {
+    clearScreen() {
+        canvas.ctx.clearRect(0, 0, canvas.width, canvas.height);
+    },
 
-function drawNextFrame() {
-    // Asteroids ought to go behind other drawings...
-    spawnedAsteroids.forEach( (asteroid) => {
-        asteroid.drawAsteroid();
-    })
-}
+    drawNextFrame() {
+        // Asteroids ought to go behind other drawings...
+        spawnedAsteroids.forEach( (asteroid) => {
+            asteroid.drawSelf();
+        })
+    },
 
-function updateGameState() {
-    spawnedAsteroids.forEach( (asteroid) => {
-        asteroid.updateKinematics();
-    })
-}
+    updateGameState() {
+        spawnedAsteroids.forEach( (asteroid) => {
+            asteroid.updateKinematics();
+        })
+    },
 
-function drawStartScreen() {
-    canvas.ctx.fillStyle = "red";
-    canvas.ctx.font = "225px monospace";
-    canvas.ctx.fillText(
-        "Type any key to start...",
-        0.10 * canvas.width,
-        0.50 * canvas.height,
-        0.80 * canvas.width
-    );
+    drawStartScreen() {
+        canvas.ctx.fillStyle = "red";
+        canvas.ctx.font = "225px monospace";
+        canvas.ctx.fillText(
+            "Type any key to start...",
+            0.10 * canvas.width,
+            0.50 * canvas.height,
+            0.80 * canvas.width
+        );
+        
+        //TODO: remove this...
+        handlers.waitToStart();
+    },
 
-    handlers.waitToStart();
-}
+    /* This function is intended to spawn an inderterminate number of
+        asteroids with mostly random positions and velocities while meeting 
+        a few criteria. Those criteria are: 
+            1. Asteroids need to spawn a certain distance 
+                away from the player.
+            2. Asteroids must not be traveling straight at 
+                the player when they spawn in.
+            3. Asteroids must spawn with a specified velocity 
+                magnitude.
+            4. Asteroids should spawn spaced out a bit from
+                each other.
+    */
+    initializeAsteroids(numberToSpawn, spawnVelocityMagnitude) {
+        spawnedAsteroids.length = 0; // reset the asteroids list...
+
+        let randSpawnRadius = 0;
+        let randSpawnAngle = 0;
+        let randVelocityAngleOffset = 0;
+        for (; numberToSpawn > 0; numberToSpawn--) {
+            randSpawnRadius = (30 * Math.random()) + 15;
+            randSpawnAngle += (Math.PI * Math.random()) + 0.5;
+            randVelocityAngleOffset = 0.75 * Math.PI * 
+                                    ((2 * Math.random()) - 1);
+            
+            //TODO: make the asteroids spawn around player coords...
+            spawnedAsteroids.push(
+                new Asteroid(
+                    50 + (randSpawnRadius * Math.cos(randSpawnAngle)),
+                    50 + (randSpawnRadius * Math.sin(randSpawnAngle)),
+                    spawnVelocityMagnitude * 
+                        (Math.cos(randSpawnAngle + randVelocityAngleOffset)),
+                    spawnVelocityMagnitude * 
+                        (Math.sin(randSpawnAngle + randVelocityAngleOffset)),
+                    16));
+            // update the asteroid to address if it spawns out of bounds...
+            spawnedAsteroids[spawnedAsteroids.length - 1].updateKinematics();
+        }
+    }
+};
 
 
 
-
-
+// Start-up stuff...
 //drawStartScreen();
 
-
-// Actual animation...
+// Game Loop
 setInterval(() => {
-    clearScreen();
-    drawNextFrame();
-    updateGameState();
-}, 17);
-
+    actions.clearScreen();
+    actions.drawNextFrame();
+    actions.updateGameState();
+}, 16);
 
 
 
 
 /* Tests... */
-const test = [
-    //0. create an asteroid...
+const tests = [
+    //0. spawn three asteroids to test drawing and kinematics...
     function() {
         spawnedAsteroids.push(
-            new Asteroid(1000, 1000, 10, 10)
+            new Asteroid(40, 90, -0.1, 0.1)
         );
+        spawnedAsteroids.push(
+            new Asteroid(20, 50, 0.14, 0.05)
+        );
+        spawnedAsteroids.push(
+            new Asteroid(10, 40, 0.01, -0.17)
+        );
+    },
+
+    //1. test actions.initializeAsteroids()...
+    function(number) {
+        actions.initializeAsteroids(number, 0.05);
     }
 ]
