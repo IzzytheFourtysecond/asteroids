@@ -2,7 +2,8 @@
 
 /* Define game assets */
 const flags = {
-    DEBUG: true
+    DEBUG: true,
+    isGameActive: false
 }
 
 const canvas = (function() {
@@ -150,6 +151,17 @@ const Player = (function() {
             this.isAccelerating = false;
         }
 
+        updateKinematics() {
+            // This accounts for the game area looping right off screen...
+            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
+            this.yPos = ((this.yPos + this.yVel + 124) % 116) - 8;
+
+            this.xVel += this.xAcc;
+            this.yVel += this.yAcc;
+
+            //TODO: implement acceleration...
+        }
+
         drawSelf() {
             let xPos = this.xPos;
             let yPos = this.yPos;
@@ -178,7 +190,6 @@ const Player = (function() {
             canvas.ctx.lineTo(
                 canvas.xPixelsOf(xPos + rotateX(0.4, 0.6)),
                 canvas.yPixelsOf(yPos + rotateY(0.4, 0.6)));
-            
             canvas.ctx.lineWidth = 6;
             canvas.ctx.strokeStyle = "white";
             canvas.ctx.stroke();
@@ -200,6 +211,27 @@ const handlers = (function() {
                     //TODO...
                     console.log("hello...")
                 }, {once : true})
+        },
+
+        receiveMovementInputs() {
+
+            // Ownership of handeling the inputs should be passed to the
+            // player object.
+            lives[0].activeInputs = [false, false, false];
+            lives[0].receiveKeyDowns = (event) => {
+                switch(event.key) {
+                    case 'ArrowLeft':
+                        this.activeInputs[0] = true;
+                        break;
+                    case 'ArrowRight':
+                        this.activeInputs[1] = true;
+                        break;
+                    case 'ArrowUp':
+                        this.activeInputs[2] = true;
+                        break;
+                }
+            }
+            //TODO...
         }
     }
 })();
@@ -217,13 +249,24 @@ const actions = {
         // Asteroids ought to go behind other drawings...
         spawnedAsteroids.forEach( (asteroid) => {
             asteroid.drawSelf();
-        })
+        });
+
+        //TODO: bullets and ufos
+
+        //Should be drawn second to last
+        lives.forEach( (ship) => {
+            ship.drawSelf();
+        });
     },
 
     updateGameState() {
         spawnedAsteroids.forEach( (asteroid) => {
             asteroid.updateKinematics();
-        })
+        });
+
+        if (flags.isGameActive) {
+            lives[0].updateKinematics();
+        }
     },
 
     drawStartScreen() {
@@ -277,13 +320,22 @@ const actions = {
             // update the asteroid to address if it spawns out of bounds...
             spawnedAsteroids[spawnedAsteroids.length - 1].updateKinematics();
         }
+    },
+
+    initializePlayers() {
+        lives.length = 0;
+        flags.isGameActive = true;
+
+        lives.push(new Player());
+
+        //TODO: more lives in corner later...
     }
 };
 
 
 
 // Start-up stuff...
-//drawStartScreen();
+//actions.drawStartScreen();
 
 // Game Loop
 setInterval(() => {
@@ -315,14 +367,10 @@ const tests = [
         actions.initializeAsteroids(number, 0.05);
     },
 
-    //2. spawn a player and make it rotate... 
+    //2. spawn a player and accelerate it...
     function() {
-        const p = new Player();
-        p.drawSelf();
-        setInterval(() => {
-            p.angle += 0.01;
-            actions.clearScreen();
-            p.drawSelf();
-        }, 18)
+        actions.initializePlayers();
+        lives[0].xAcc = 0.001;
+        lives[0].yAcc = 0.001;
     }
 ]
