@@ -149,29 +149,52 @@ const Player = (function() {
             this.xAcc = 0;
             this.yAcc = 0;
             this.isAccelerating = false;
+            this.controller = null;
+
+            /* The following is given by 
+                handlers.receiveMovementInputs():
+                
+                this.controller = {
+                    activeInputs = [false, false, false],
+                    receiveKeyDowns = (event) => {...},
+                    receiveKeyUps = (event) => {...}
+                }
+            */
         }
 
         updateKinematics() {
-            // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
-            this.yPos = ((this.yPos + this.yVel + 124) % 116) - 8;
+            if (this.controller) {
+                this.angle = (this.angle + (2 * Math.PI) +
+                        (this.controller.activeInputs[0] * 0.1) -
+                        (this.controller.activeInputs[1] * 0.1)
+                    ) % (2 * Math.PI);
+                
+                this.isAccelerating = this.controller.activeInputs[2];
+                this.xAcc = 0.002 * this.controller.activeInputs[2] *
+                    -Math.sin(this.angle);
+                this.yAcc = 0.002 * this.controller.activeInputs[2] * 
+                    -Math.cos(this.angle);
+            }
 
             this.xVel += this.xAcc;
             this.yVel += this.yAcc;
 
-            //TODO: implement acceleration...
+            // This accounts for the game area looping right off screen...
+            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
+            this.yPos = ((this.yPos + this.yVel + 124) % 116) - 8;
         }
 
         drawSelf() {
             let xPos = this.xPos;
             let yPos = this.yPos;
             let angle = this.angle;
+            let isAccelerating = this.isAccelerating;
 
             // This is to use a rotation matrix...
             let cosAngle = Math.cos(angle);
             let sinAngle = Math.sin(angle);
-            let rotateX = (x, y) => (x * cosAngle) - (y * sinAngle);
-            let rotateY = (x, y) => (x * sinAngle) + (y * cosAngle);
+            let rotateX = (x, y) => (x * cosAngle) + (y * sinAngle);
+            let rotateY = (x, y) => -(x * sinAngle) + (y * cosAngle);
 
             // This draws the main ship body...
             canvas.ctx.beginPath();
@@ -193,6 +216,24 @@ const Player = (function() {
             canvas.ctx.lineWidth = 6;
             canvas.ctx.strokeStyle = "white";
             canvas.ctx.stroke();
+
+            // This draws engine flame...
+            if (isAccelerating) {
+                canvas.ctx.beginPath();
+                canvas.ctx.moveTo(
+                    canvas.xPixelsOf(xPos + rotateX(-0.4, 0.6)),
+                    canvas.yPixelsOf(yPos + rotateY(-0.4, 0.6)));
+                canvas.ctx.lineTo(
+                    canvas.xPixelsOf(xPos + rotateX(0.4, 0.6)),
+                    canvas.yPixelsOf(yPos + rotateY(0.4, 0.6)));
+                canvas.ctx.lineTo(
+                    canvas.xPixelsOf(xPos + rotateX(0, 2)),
+                    canvas.yPixelsOf(yPos + rotateY(0, 2)));
+                canvas.ctx.closePath();
+                canvas.ctx.fillStyle = "white";
+                canvas.ctx.fill("evenodd");
+            }
+            
         }
     }
 })();
@@ -206,32 +247,46 @@ const handlers = (function() {
 
 
     return {
-        waitToStart() {
-            body.addEventListener("keydown", (event) => {
-                    //TODO...
-                    console.log("hello...")
-                }, {once : true})
-        },
-
         receiveMovementInputs() {
 
             // Ownership of handeling the inputs should be passed to the
-            // player object.
-            lives[0].activeInputs = [false, false, false];
-            lives[0].receiveKeyDowns = (event) => {
+            // player object. The function doesn't use keyword "this" 
+            // however because the functions are being called by an 
+            // event handler rather than the player object. So "this" would 
+            // not be tied to the intended object.
+            let that = (lives[0].controller = {});
+            that.activeInputs = [false, false, false];
+            that.receiveKeyDowns = (event) => {
                 switch(event.key) {
                     case 'ArrowLeft':
-                        this.activeInputs[0] = true;
+                        that.activeInputs[0] = true;
                         break;
                     case 'ArrowRight':
-                        this.activeInputs[1] = true;
+                        that.activeInputs[1] = true;
                         break;
                     case 'ArrowUp':
-                        this.activeInputs[2] = true;
+                        that.activeInputs[2] = true;
                         break;
                 }
             }
-            //TODO...
+            that.receiveKeyUps = (event) => {
+                switch(event.key) {
+                    case 'ArrowLeft':
+                        that.activeInputs[0] = false;
+                        break;
+                    case 'ArrowRight':
+                        that.activeInputs[1] = false;
+                        break;
+                    case 'ArrowUp':
+                        that.activeInputs[2] = false;
+                        break;
+                }
+            }
+            
+            body.addEventListener("keydown", that.receiveKeyDowns);
+            body.addEventListener("keyup", that.receiveKeyUps);
+
+            //TODO... call something to initialize collision...
         }
     }
 })();
@@ -278,9 +333,6 @@ const actions = {
             0.50 * canvas.height,
             0.80 * canvas.width
         );
-        
-        //TODO: remove this...
-        handlers.waitToStart();
     },
 
     /* This function is intended to spawn an inderterminate number of
@@ -327,6 +379,7 @@ const actions = {
         flags.isGameActive = true;
 
         lives.push(new Player());
+        handlers.receiveMovementInputs();
 
         //TODO: more lives in corner later...
     }
@@ -370,7 +423,5 @@ const tests = [
     //2. spawn a player and accelerate it...
     function() {
         actions.initializePlayers();
-        lives[0].xAcc = 0.001;
-        lives[0].yAcc = 0.001;
     }
 ]

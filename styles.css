@@ -28,7 +28,7 @@ header h1 {
 #mainCanvas {
     position: absolute;
     top: 10%;
-    width: 75%;
+    width: 60%;
     height: 89%;
     border-color: whitesmoke;
     border-style: solid;
@@ -37,8 +37,8 @@ header h1 {
 aside {
     position: absolute;
     top: 10%;
-    left: 75%;
-    width: 25%;
+    left: 60%;
+    width: 40%;
     height: 89%;
     margin: 0%;
 }
