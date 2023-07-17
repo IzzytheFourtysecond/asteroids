@@ -108,10 +108,10 @@ const Asteroid = (function() {
                 0, 0, 2*Math.PI);
             canvas.ctx.stroke();
         }
+
+        static spawnedAsteroids = [];
     }
 })();
-
-const spawnedAsteroids = [];
 
 const Player = (function() {
     return class Player {
@@ -210,10 +210,19 @@ const Player = (function() {
                 canvas.ctx.fill("evenodd");
             }
         }
+
+        static lives = [];
     }
 })();
 
-const lives = [];
+const Bullet = (function() {
+    return class Bullet {
+        constructor() {
+            this.framesLeftToLive = 800;
+            //TODO...
+        }
+    }
+})()
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define handlers */
@@ -227,7 +236,7 @@ const handlers = (function() {
             // however because the functions are being called by an 
             // event handler rather than the player object. So "this" would 
             // not be tied to the intended object.
-            let that = (lives[0].controller = {});
+            let that = (Player.lives[0].controller = {});
             that.activeInputs = [false, false, false];
             that.receiveKeyDowns = (event) => {
                 switch(event.key) {
@@ -275,25 +284,25 @@ const actions = {
 
     drawNextFrame() {
         // Asteroids ought to go behind other drawings...
-        spawnedAsteroids.forEach( (asteroid) => {
+        Asteroid.spawnedAsteroids.forEach( (asteroid) => {
             asteroid.drawSelf();
         });
 
         //TODO: bullets and ufos
 
         //Should be drawn second to last
-        lives.forEach( (ship) => {
+        Player.lives.forEach( (ship) => {
             ship.drawSelf();
         });
     },
 
     updateGameState() {
-        spawnedAsteroids.forEach( (asteroid) => {
+        Asteroid.spawnedAsteroids.forEach( (asteroid) => {
             asteroid.updateKinematics();
         });
 
         if (flags.isGameActive) {
-            lives[0].updateKinematics();
+            Player.lives[0].updateKinematics();
         }
     },
 
@@ -321,7 +330,7 @@ const actions = {
                 each other.
     */
     initializeAsteroids(numberToSpawn, spawnVelocityMagnitude) {
-        spawnedAsteroids.length = 0; // reset the asteroids list...
+        Asteroid.spawnedAsteroids.length = 0; // reset the asteroids list...
 
         let randSpawnRadius = 0;
         let randSpawnAngle = 0;
@@ -333,7 +342,7 @@ const actions = {
                                     ((2 * Math.random()) - 1);
             
             //TODO: make the asteroids spawn around player coords...
-            spawnedAsteroids.push(
+            Asteroid.spawnedAsteroids.push(
                 new Asteroid(
                     50 + (randSpawnRadius * Math.cos(randSpawnAngle)),
                     50 + (randSpawnRadius * Math.sin(randSpawnAngle)),
@@ -343,15 +352,16 @@ const actions = {
                         (Math.sin(randSpawnAngle + randVelocityAngleOffset)),
                     16));
             // update the asteroid to address if it spawns out of bounds...
-            spawnedAsteroids[spawnedAsteroids.length - 1].updateKinematics();
+            Asteroid.spawnedAsteroids[Asteroid.spawnedAsteroids.length 
+                                                    - 1].updateKinematics();
         }
     },
 
     initializePlayers() {
-        lives.length = 0;
+        Player.lives.length = 0;
         flags.isGameActive = true;
 
-        lives.push(new Player());
+        Player.lives.push(new Player());
         handlers.receiveMovementInputs();
 
         //TODO: more lives in corner later...
@@ -377,13 +387,13 @@ setInterval(() => {
 const tests = [
     //0. spawn three asteroids to test drawing and kinematics...
     function() {
-        spawnedAsteroids.push(
+        Asteroid.spawnedAsteroids.push(
             new Asteroid(40, 90, -0.1, 0.1)
         );
-        spawnedAsteroids.push(
+        Asteroid.spawnedAsteroids.push(
             new Asteroid(20, 50, 0.14, 0.05)
         );
-        spawnedAsteroids.push(
+        Asteroid.spawnedAsteroids.push(
             new Asteroid(10, 40, 0.01, -0.17)
         );
     },
