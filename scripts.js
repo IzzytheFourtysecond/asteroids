@@ -42,10 +42,6 @@ const Asteroid = (function() {
         const dTheta = Math.PI / 6;
         const shapeOutline = [];
 
-        let averageRadius = 0;
-        let averageXOffset = 0;
-        let averageYOffset = 0;
-
         let randomScaling, angle;
         for (let turns = 0; turns < 12; ++turns) {
             // get scaling factor...
@@ -58,33 +54,14 @@ const Asteroid = (function() {
             shapeOutline.push(0.5 * randomScaling * Math.cos(angle));
             // store y-coord...
             shapeOutline.push(0.5 * randomScaling * Math.sin(angle));
-
-            // update averages
-            averageRadius = ((randomScaling - averageRadius) / 
-                                (turns + 1)) + averageRadius;
-            averageXOffset = ((shapeOutline[shapeOutline.length - 2] - 
-                    averageXOffset) / (turns + 1)) + averageXOffset;
-            averageYOffset = ((shapeOutline[shapeOutline.length - 1] - 
-                    averageYOffset) / (turns + 1)) + averageYOffset;
         }
 
-        shapeOutline.push(0.5 * averageRadius)
-        shapeOutline.push(averageXOffset);
-        shapeOutline.push(averageYOffset);
         return shapeOutline;
     }
 
     return class Asteroid {
         constructor(xPos = 0, yPos = 0, xVel = 0, yVel = 0, size = 16) {
             this.outline = generateOutline();
-
-            const temp = this.outline;
-            this.hitBox = {
-                yOffset: temp.pop(),
-                xOffset: temp.pop(),
-                radius: temp.pop()
-            };
-
             this.xPos = xPos;
             this.yPos = yPos;
             this.xVel = xVel;
@@ -125,12 +102,10 @@ const Asteroid = (function() {
             canvas.ctx.beginPath();
             canvas.ctx.strokeStyle = "green";
             canvas.ctx.ellipse(
-                canvas.xPixelsOf(xPos + (this.size * this.hitBox.xOffset)), 
-                canvas.yPixelsOf(yPos + (this.size * this.hitBox.yOffset)), 
-                canvas.xPixelsOf(this.hitBox.radius * this.size),
-                canvas.yPixelsOf(this.hitBox.radius * this.size), 
-                0,
-                0, 2*Math.PI);
+                canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
+                canvas.xPixelsOf(0.46 * this.size),
+                canvas.yPixelsOf(0.46 * this.size), 
+                0, 0, 2*Math.PI);
             canvas.ctx.stroke();
         }
     }
@@ -170,14 +145,15 @@ const Player = (function() {
                     ) % (2 * Math.PI);
                 
                 this.isAccelerating = this.controller.activeInputs[2];
-                this.xAcc = 0.002 * this.controller.activeInputs[2] *
+                this.xAcc = 0.01 * this.controller.activeInputs[2] *
                     -Math.sin(this.angle);
-                this.yAcc = 0.002 * this.controller.activeInputs[2] * 
+                this.yAcc = 0.01 * this.controller.activeInputs[2] * 
                     -Math.cos(this.angle);
             }
 
-            this.xVel += this.xAcc;
-            this.yVel += this.yAcc;
+            // Trying to add some friction to make the game more playable...
+            this.xVel = 0.995 * (this.xVel + this.xAcc);
+            this.yVel = 0.995 * (this.yVel + this.yAcc);
 
             // This accounts for the game area looping right off screen...
             this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
@@ -233,7 +209,6 @@ const Player = (function() {
                 canvas.ctx.fillStyle = "white";
                 canvas.ctx.fill("evenodd");
             }
-            
         }
     }
 })();
@@ -243,9 +218,7 @@ const lives = [];
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define handlers */
 const handlers = (function() {
-    const body = document.getElementsByTagName("body")[0];
-
-
+    
     return {
         receiveMovementInputs() {
 
@@ -283,8 +256,8 @@ const handlers = (function() {
                 }
             }
             
-            body.addEventListener("keydown", that.receiveKeyDowns);
-            body.addEventListener("keyup", that.receiveKeyUps);
+            window.addEventListener("keydown", that.receiveKeyDowns);
+            window.addEventListener("keyup", that.receiveKeyUps);
 
             //TODO... call something to initialize collision...
         }
@@ -420,7 +393,7 @@ const tests = [
         actions.initializeAsteroids(number, 0.05);
     },
 
-    //2. spawn a player and accelerate it...
+    //2. spawn a player...
     function() {
         actions.initializePlayers();
     }
