@@ -52,3 +52,11 @@ coordinates from -8 to 125 with 0 to 119 being on screen?
 Maybe spawning the asteroids can stay on the old coordinates?
 Maybe its not worth changing?
 
+7/18/2023
+How bullet velocity is being calculated:
+    v_hat = [tip of player ship] - [player position]; // a unit vector...
+
+    v_bullet = ((0.5 * (v_hat ⋅ [ship's old velocity])) + 20) * v_hat;
+
+Idea for implementing collisions later: 
+    call updateKinematics many times per frame...

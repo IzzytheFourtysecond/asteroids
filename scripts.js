@@ -2,8 +2,15 @@
 
 /* Define game assets */
 const flags = {
-    DEBUG: true,
+    DEBUG: false,
     isGameActive: false
+}
+const FRAME_RATE = 60;
+const NUM_SUB_FRAMES = 4;
+
+const v2d_math = {
+    dot: (arr1, arr2) => (arr1[0] * arr2[0]) + (arr1[1] * arr2[1]),
+    magnitude: (arr) => Math.sqrt((arr[0] * arr[0]) + (arr[1] * arr[1]))
 }
 
 const canvas = (function() {
@@ -70,9 +77,13 @@ const Asteroid = (function() {
         }
 
         updateKinematics() {
+            const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
+
             // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
-            this.yPos = ((this.yPos + this.yVel + 124) % 116) - 8;
+            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
+                                                        + 124) % 116) - 8;
+            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
+                                                        + 124) % 116) - 8;
         }
 
         drawSelf() {
@@ -103,8 +114,8 @@ const Asteroid = (function() {
             canvas.ctx.strokeStyle = "green";
             canvas.ctx.ellipse(
                 canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
-                canvas.xPixelsOf(0.46 * this.size),
-                canvas.yPixelsOf(0.46 * this.size), 
+                canvas.xPixelsOf((0.46 * this.size) + 2),
+                canvas.yPixelsOf((0.46 * this.size) + 2), 
                 0, 0, 2*Math.PI);
             canvas.ctx.stroke();
         }
@@ -138,26 +149,33 @@ const Player = (function() {
         }
 
         updateKinematics() {
+            const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
+
             if (this.controller) {
                 this.angle = (this.angle + (2 * Math.PI) +
-                        (this.controller.activeInputs[0] * 0.1) -
-                        (this.controller.activeInputs[1] * 0.1)
+                        (this.controller.activeInputs[0] * 0.025) -
+                        (this.controller.activeInputs[1] * 0.025)
                     ) % (2 * Math.PI);
                 
                 this.isAccelerating = this.controller.activeInputs[2];
-                this.xAcc = 0.01 * this.controller.activeInputs[2] *
+                this.xAcc = 16 * this.controller.activeInputs[2] *
                     -Math.sin(this.angle);
-                this.yAcc = 0.01 * this.controller.activeInputs[2] * 
+                this.yAcc = 16 * this.controller.activeInputs[2] * 
                     -Math.cos(this.angle);
             }
 
+            this.xVel += (SEC_PER_SUBFRAME * this.xAcc);
+            this.yVel += (SEC_PER_SUBFRAME * this.yAcc);
+
             // Trying to add some friction to make the game more playable...
-            this.xVel = 0.995 * (this.xVel + this.xAcc);
-            this.yVel = 0.995 * (this.yVel + this.yAcc);
+            this.xVel -= 0.001 * this.xVel;
+            this.yVel -= 0.001 * this.yVel;
 
             // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + this.xVel + 124) % 116) - 8;
-            this.yPos = ((this.yPos + this.yVel + 124) % 116) - 8;
+            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
+                                                        + 124) % 116) - 8;
+            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
+                                                        + 124) % 116) - 8;
         }
 
         drawSelf() {
@@ -170,7 +188,7 @@ const Player = (function() {
             let cosAngle = Math.cos(angle);
             let sinAngle = Math.sin(angle);
             let rotateX = (x, y) => (x * cosAngle) + (y * sinAngle);
-            let rotateY = (x, y) => -(x * sinAngle) + (y * cosAngle);
+            let rotateY = (x, y) => (y * cosAngle) - (x * sinAngle);
 
             // This draws the main ship body...
             canvas.ctx.beginPath();
@@ -207,8 +225,32 @@ const Player = (function() {
                     canvas.yPixelsOf(yPos + rotateY(0, 2)));
                 canvas.ctx.closePath();
                 canvas.ctx.fillStyle = "white";
-                canvas.ctx.fill("evenodd");
+                canvas.ctx.fill();
             }
+
+            if (!flags.DEBUG) return;
+
+            // orange is +x-direction
+            canvas.ctx.beginPath();
+            canvas.ctx.moveTo(
+                canvas.xPixelsOf(xPos),
+                canvas.yPixelsOf(yPos));
+            canvas.ctx.lineTo(
+                canvas.xPixelsOf(xPos + 5),
+                canvas.yPixelsOf(yPos));
+            canvas.ctx.strokeStyle = "orange";
+            canvas.ctx.stroke();
+            
+            // cyan is +y-direction
+            canvas.ctx.beginPath();
+            canvas.ctx.moveTo(
+                canvas.xPixelsOf(xPos),
+                canvas.yPixelsOf(yPos));
+            canvas.ctx.lineTo(
+                canvas.xPixelsOf(xPos),
+                canvas.yPixelsOf(yPos + 5));
+            canvas.ctx.strokeStyle = "cyan";
+            canvas.ctx.stroke();
         }
 
         static lives = [];
@@ -216,13 +258,94 @@ const Player = (function() {
 })();
 
 const Bullet = (function() {
+
+    /* This is a ring buffer meant to help the class function...*/
+    const capacity = 6; //note: actual capacity is actually one less...
+    const bullets = new Array(capacity).fill(null);
+    let readIndex = 0;
+    let writeIndex = 0;
+
+    const removeBullet = function() {
+        bullets[readIndex] = null;
+        readIndex = (readIndex + 1) % capacity;
+    };
+
     return class Bullet {
-        constructor() {
-            this.framesLeftToLive = 800;
-            //TODO...
+        constructor(player) {
+            if ((writeIndex + 1) % (capacity) == readIndex) {
+                throw new Error("Can't shoot more than five at a time...")
+            }
+            
+            let xPosTemp = player.xPos;
+            let yPosTemp = player.yPos;
+            let xVelTemp = player.xVel;
+            let yVelTemp = player.yVel;
+
+            let angleTemp = player.angle;
+            let cosAngle = Math.cos(angleTemp);
+            let sinAngle = Math.sin(angleTemp);
+            let xVelHat = ((x, y) => (x * cosAngle) + (y * sinAngle))(0, -1);
+            let yVelHat = ((x, y) => (y * cosAngle) - (x * sinAngle))(0, -1);
+            let speed = 20 + 
+                (v2d_math.dot([xVelHat, yVelHat], [xVelTemp, yVelTemp]));
+
+            this.xPos = xPosTemp + xVelHat;
+            this.yPos = yPosTemp + yVelHat;
+            this.xVel = speed * xVelHat;
+            this.yVel = speed * yVelHat;
+            this.framesLeft = 180 * NUM_SUB_FRAMES;
+
+            bullets[writeIndex] = this;
+            writeIndex = (writeIndex + 1) % capacity;
+
+            // recoil on the ship...
+            player.xVel = player.xVel - (0.05 * this.xVel);
+            player.yVel = player.yVel - (0.05 * this.yVel);
         }
-    }
-})()
+
+        // Right now this could be a private method...
+        updateKinematics() {
+            const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
+
+            // This accounts for the game area looping right off screen...
+            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
+                                                        + 124) % 116) - 8;
+            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
+                                                        + 124) % 116) - 8;
+            if (--this.framesLeft == 0)
+                removeBullet();
+        }
+
+        static update() {
+            bullets.forEach( (bullet) => {
+                //!(bullet) is used to check for nulls...
+                !(bullet) || bullet.updateKinematics();
+            });
+        }
+
+        // Right now this could be a private method...
+        drawSelf() {
+            let xPos = this.xPos;
+            let yPos = this.yPos;
+
+            canvas.ctx.beginPath();
+            canvas.ctx.ellipse(
+                canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
+                canvas.xPixelsOf(0.25),
+                canvas.yPixelsOf(0.25), 
+                0, 0, 2*Math.PI);
+            canvas.ctx.fillStyle = "white";
+            canvas.ctx.fill();
+        }
+
+        static drawBullets() {
+            bullets.forEach( (bullet) => {
+                //!(bullet) is used to check for nulls...
+                !(bullet) || bullet.drawSelf();
+            });
+        }
+    };
+})();
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define handlers */
@@ -248,6 +371,12 @@ const handlers = (function() {
                         break;
                     case 'ArrowUp':
                         that.activeInputs[2] = true;
+                        break;
+                    case ' ':
+                        try {new Bullet(Player.lives[0])}
+                        catch(err) {
+                            if (flags.DEBUG) console.log(err.message);
+                        }
                         break;
                 }
             }
@@ -289,6 +418,7 @@ const actions = {
         });
 
         //TODO: bullets and ufos
+        Bullet.drawBullets();
 
         //Should be drawn second to last
         Player.lives.forEach( (ship) => {
@@ -304,6 +434,8 @@ const actions = {
         if (flags.isGameActive) {
             Player.lives[0].updateKinematics();
         }
+
+        Bullet.update();
     },
 
     drawStartScreen() {
@@ -343,14 +475,14 @@ const actions = {
             
             //TODO: make the asteroids spawn around player coords...
             Asteroid.spawnedAsteroids.push(
-                new Asteroid(
+                (new Asteroid(
                     50 + (randSpawnRadius * Math.cos(randSpawnAngle)),
                     50 + (randSpawnRadius * Math.sin(randSpawnAngle)),
                     spawnVelocityMagnitude * 
                         (Math.cos(randSpawnAngle + randVelocityAngleOffset)),
                     spawnVelocityMagnitude * 
                         (Math.sin(randSpawnAngle + randVelocityAngleOffset)),
-                    16));
+                    16)));
             // update the asteroid to address if it spawns out of bounds...
             Asteroid.spawnedAsteroids[Asteroid.spawnedAsteroids.length 
                                                     - 1].updateKinematics();
@@ -377,8 +509,10 @@ const actions = {
 setInterval(() => {
     actions.clearScreen();
     actions.drawNextFrame();
-    actions.updateGameState();
-}, 16);
+    for (let i = 0; i < NUM_SUB_FRAMES; ++i) {
+        actions.updateGameState();
+    }
+}, Math.floor(1000 / FRAME_RATE));
 
 
 
@@ -400,7 +534,7 @@ const tests = [
 
     //1. test actions.initializeAsteroids()...
     function(number) {
-        actions.initializeAsteroids(number, 0.05);
+        actions.initializeAsteroids(number, 4);
     },
 
     //2. spawn a player...
