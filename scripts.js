@@ -1,12 +1,14 @@
 "use strict";
 
+// Important note: my tab size is equivalent to four spaces...
+
 /* Define game assets */
 const flags = {
-    DEBUG: true,
+    DEBUG: false,
     isGameActive: false
 }
 const FRAME_RATE = 60;
-const NUM_SUB_FRAMES = 4;
+const NUM_SUB_FRAMES = 10;
 
 const v2d_math = {
     dot: (arr1, arr2) => (arr1[0] * arr2[0]) + (arr1[1] * arr2[1]),
@@ -22,7 +24,6 @@ const v2d_math = {
             (temp2 * (temp2 - temp3) <= 0);
     },
 
-    // I'm not sure if this is ever going to be used...
     magnitude: (arr) => Math.sqrt((arr[0] * arr[0]) + (arr[1] * arr[1]))
 }
 
@@ -135,7 +136,10 @@ const Asteroid = (function() {
 
         static weakCollisionDetect(asset) {
 
-            for (let asteroid of Asteroid.spawnedAsteroids) {
+            let asteroid = null;
+            for (let i = 0; i < Asteroid.spawnedAsteroids.length; ++i) {
+                asteroid = Asteroid.spawnedAsteroids[i];
+
                 // maybe rework calculating distance?
                 if (v2d_math.magnitude([asset.xPos - asteroid.xPos, 
                                         asset.yPos - asteroid.yPos]) 
@@ -145,12 +149,69 @@ const Asteroid = (function() {
 
                 // more intensive collision detection...
                 if (asset.strongCollisionAsteroid(asteroid)) {
-                    //TODO: define asteroid breaking apart...
+
+                    Asteroid.spawnedAsteroids.splice(i, 1);
+                    asteroid.breakApart(asset);
                     return true;
                 }
             }
 
             return false;
+        }
+
+        breakApart(asset) {
+            
+            if (this.size == 4) return;
+
+            // Get a unit vector of how far the bullet was from the center.
+            let blastX = this.xPos - asset.xPos;
+            let blastY = this.yPos - asset.yPos;
+            let magnitudeRecip = 1 / v2d_math.magnitude([blastX, 
+                                                            blastY]);
+            blastX *= magnitudeRecip;
+            blastY *= magnitudeRecip;
+
+            // Scale the unit vector by other thing's speed**.
+            let assetSpeed = v2d_math.magnitude([asset.xVel, asset.yVel]);
+            blastX *= assetSpeed * 0.1;
+            blastY *= assetSpeed * 0.1;
+            
+            // Will be used to add randomness to velocity of new asteroids.
+            let randomAngle = Math.random() * 0.33 * Math.PI;
+            let rotateX = (x, y, angle) => (x * Math.cos(angle)) + 
+                                                    (y * Math.sin(angle));
+            let rotateY = (x, y, angle) => (y * Math.cos(angle)) - 
+                                                    (x * Math.sin(angle));
+            
+            // Spawn one asteroid...
+            Asteroid.spawnedAsteroids.push(
+                (new Asteroid(
+                    this.xPos, this.yPos,
+                    this.xVel + rotateX(blastX, blastY, randomAngle) + 
+                                                (asset.xVel * 0.1),
+                    this.yVel + rotateY(blastX, blastY, randomAngle) + 
+                                                (asset.yVel * 0.1),
+                    0.5 * this.size
+                )));
+            for (let i = 0; i < 8; ++i) {
+                Asteroid.spawnedAsteroids[Asteroid.spawnedAsteroids.length 
+                                                    - 1].updateKinematics();
+            }
+
+            // Spawn a second asteroid...
+            Asteroid.spawnedAsteroids.push(
+                (new Asteroid(
+                    this.xPos, this.yPos,
+                    this.xVel + rotateX(blastX, blastY, -randomAngle) + 
+                                                (asset.xVel * 0.1),
+                    this.yVel + rotateY(blastX, blastY, -randomAngle) + 
+                                                (asset.yVel * 0.1),
+                    0.5 * this.size
+                )));
+            for (let i = 0; i < 8; ++i) {
+                Asteroid.spawnedAsteroids[Asteroid.spawnedAsteroids.length 
+                                                    - 1].updateKinematics();
+            }
         }
 
         static spawnedAsteroids = [];
@@ -186,8 +247,8 @@ const Player = (function() {
 
             if (this.controller) {
                 this.angle = (this.angle + (2 * Math.PI) +
-                        (this.controller.activeInputs[0] * 0.025) -
-                        (this.controller.activeInputs[1] * 0.025)
+                    (this.controller.activeInputs[0] * 5 * SEC_PER_SUBFRAME) -
+                    (this.controller.activeInputs[1] * 5 * SEC_PER_SUBFRAME)
                     ) % (2 * Math.PI);
                 
                 this.isAccelerating = this.controller.activeInputs[2];
@@ -201,8 +262,8 @@ const Player = (function() {
             this.yVel += (SEC_PER_SUBFRAME * this.yAcc);
 
             // Trying to add some friction to make the game more playable...
-            this.xVel -= 0.0025 * this.xVel;
-            this.yVel -= 0.0025 * this.yVel;
+            this.xVel -= 0.6 * SEC_PER_SUBFRAME * this.xVel;
+            this.yVel -= 0.6 * SEC_PER_SUBFRAME * this.yVel;
 
             // This accounts for the game area looping right off screen...
             this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
@@ -337,6 +398,7 @@ const Bullet = (function() {
 
             // Used to cancel drawing and collision...
             this.alreadyCollided = false;
+            this.explosionFramesLeft = 10;
 
             bullets[writeIndex] = this;
             writeIndex = (writeIndex + 1) % capacity;
@@ -348,16 +410,20 @@ const Bullet = (function() {
 
         // Right now this could be a private method...
         updateKinematics() {
-            const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
 
-            this.previousX = this.xPos;
-            this.previousY = this.yPos;
+            if (!this.alreadyCollided) {
+                const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
 
-            // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
+                this.previousX = this.xPos;
+                this.previousY = this.yPos;
+
+                // This accounts for the game area looping right off screen...
+                this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
                                                         + 124) % 116) - 8;
-            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
+                this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
                                                         + 124) % 116) - 8;
+            }
+
             if (--this.framesLeft == 0)
                 removeBullet();
         }
@@ -374,14 +440,27 @@ const Bullet = (function() {
             let xPos = this.xPos;
             let yPos = this.yPos;
 
-            canvas.ctx.beginPath();
-            canvas.ctx.ellipse(
-                canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
-                canvas.xPixelsOf(0.25),
-                canvas.yPixelsOf(0.25), 
-                0, 0, 2*Math.PI);
-            canvas.ctx.fillStyle = "white";
-            canvas.ctx.fill();
+            if (!this.alreadyCollided) {
+                canvas.ctx.beginPath();
+                canvas.ctx.ellipse(
+                    canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
+                    canvas.xPixelsOf(0.25), canvas.yPixelsOf(0.25), 
+                    0, 0, 2*Math.PI);
+                canvas.ctx.fillStyle = "white";
+                canvas.ctx.fill();
+                return;
+            }
+
+            if (--this.explosionFramesLeft > 0) {
+                canvas.ctx.beginPath();
+                canvas.ctx.ellipse(
+                    canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
+                    canvas.xPixelsOf(1), canvas.yPixelsOf(1), 
+                    0, 0, 2*Math.PI);
+                canvas.ctx.fillStyle = "white";
+                canvas.ctx.fill();
+            }
+
         }
 
         static drawBullets() {
@@ -396,14 +475,15 @@ const Bullet = (function() {
                 if (!bullet || bullet.alreadyCollided) continue;
 
                 // check for collisions with asteroids...
-                let detected = Asteroid.weakCollisionDetect(bullet);
-
-                // TODO: remove this statement
-                if (detected) console.log("collision!");
+                if (Asteroid.weakCollisionDetect(bullet)) {
+                    bullet.alreadyCollided = true;
+                    continue;
+                }
             }
         }
 
         strongCollisionAsteroid(asteroid) {
+            const FUDGE = 1.001;
 
             // Edge case: bullet is looping...
             if (v2d_math.magnitude(
@@ -423,9 +503,9 @@ const Bullet = (function() {
                             asteroid.outline[(2 * i) + 1])],
                     //m2
                     [asteroid.size * (asteroid.outline[(2 * i) + 2] - 
-                            asteroid.outline[(2 * i)]),
+                            asteroid.outline[(2 * i)]) * FUDGE,
                         asteroid.size * (asteroid.outline[(2 * i) + 3] - 
-                            asteroid.outline[(2 * i) + 1])]
+                            asteroid.outline[(2 * i) + 1]) * FUDGE]
                 )) return true;
             }
 
@@ -441,9 +521,9 @@ const Bullet = (function() {
                         asteroid.outline[23])],
                 //m2
                 [asteroid.size * (asteroid.outline[0] - 
-                        asteroid.outline[(22)]),
+                        asteroid.outline[(22)]) * FUDGE,
                     asteroid.size * (asteroid.outline[1] - 
-                        asteroid.outline[23])]
+                        asteroid.outline[23]) * FUDGE]
                 );
         }
     };
