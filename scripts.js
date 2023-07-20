@@ -523,8 +523,6 @@ const Bullet = (function() {
                                 this.yPos - asteroid.yPos];
             let size = asteroid.size;
 
-
-
             let v1 = [size * asteroid.outline[22],
                         size * asteroid.outline[23]];
             let v2 = [size * asteroid.outline[0],
