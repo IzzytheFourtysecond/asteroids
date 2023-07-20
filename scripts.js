@@ -8,14 +8,17 @@ const flags = {
     isGameActive: false
 }
 const FRAME_RATE = 60;
-const NUM_SUB_FRAMES = 10;
+const NUM_SUB_FRAMES = 4;
 
 const v2d_math = {
     dot: (arr1, arr2) => (arr1[0] * arr2[0]) + (arr1[1] * arr2[1]),
 
     cross: (arr1, arr2) => ((arr1[0] * arr2[1]) - (arr1[1] * arr2[0])),
 
+    magnitude: (arr) => Math.sqrt((arr[0] * arr[0]) + (arr[1] * arr[1])),
+
     //b1 and b2 are starting vectors, m1 and m2 are slope vectors...
+    //Not sure if this is used...
     doLineSegmentsCross(b1, m1, b2, m2) {
         let temp1 = this.cross(m1, [b2[0] - b1[0], b2[1] - b1[1]]);
         let temp2 = this.cross(m2, [b1[0] - b2[0], b1[1] - b2[1]]);
@@ -24,7 +27,13 @@ const v2d_math = {
             (temp2 * (temp2 - temp3) <= 0);
     },
 
-    magnitude: (arr) => Math.sqrt((arr[0] * arr[0]) + (arr[1] * arr[1]))
+    // b and m define the line, a1 and a2 are point vectors...
+    // Not sure if this is used...
+    arePointsOnSameSideOfLine(b, m, a1, a2) {
+        let temp1 = [a1[0] - b[0], a1[1] - b[1]];
+        let temp2 = [a2[0] - b[0], a2[1] - b[1]];
+        return (this.cross(m * temp1) * this.cross(m * temp2)) >= 0;
+    }
 }
 
 const canvas = (function() {
@@ -92,12 +101,13 @@ const Asteroid = (function() {
 
         updateKinematics() {
             const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
+            const offScreen = 0.5 * this.size;
 
             // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
-                                                        + 124) % 116) - 8;
-            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
-                                                        + 124) % 116) - 8;
+            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) + 
+                (100 + (3 * offScreen))) % (100 + 2 * offScreen)) - offScreen;
+            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) +
+                (100 + (3 * offScreen))) % (100 + 2 * offScreen)) - offScreen;
         }
 
         drawSelf() {
@@ -124,6 +134,7 @@ const Asteroid = (function() {
 
             if (!flags.DEBUG) return;
 
+            // weak hitbox
             canvas.ctx.beginPath();
             canvas.ctx.strokeStyle = "green";
             canvas.ctx.ellipse(
@@ -132,6 +143,29 @@ const Asteroid = (function() {
                 canvas.yPixelsOf((0.46 * this.size) + 2), 
                 0, 0, 2*Math.PI);
             canvas.ctx.stroke();
+
+            // center
+            canvas.ctx.beginPath();
+            canvas.ctx.fillStyle = "green";
+            canvas.ctx.ellipse(
+                canvas.xPixelsOf(xPos), canvas.yPixelsOf(yPos), 
+                canvas.xPixelsOf(0.5),
+                canvas.yPixelsOf(0.5), 
+                0, 0, 2*Math.PI);
+            canvas.ctx.fill();
+
+            // vertices
+            for (let i = 0; i < 12; ++i) {
+                canvas.ctx.beginPath();
+                canvas.ctx.ellipse(
+                    canvas.xPixelsOf((this.outline[2*i] * this.size) + xPos), 
+                    canvas.yPixelsOf((this.outline[(2*i) + 1] * this.size)
+                                                                    + yPos), 
+                    canvas.xPixelsOf(0.5),
+                    canvas.yPixelsOf(0.5), 
+                    0, 0, 2*Math.PI);
+                canvas.ctx.fill()
+            }
         }
 
         static weakCollisionDetect(asset) {
@@ -244,6 +278,7 @@ const Player = (function() {
 
         updateKinematics() {
             const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
+            const offScreen = 2;
 
             if (this.controller) {
                 this.angle = (this.angle + (2 * Math.PI) +
@@ -266,10 +301,10 @@ const Player = (function() {
             this.yVel -= 0.6 * SEC_PER_SUBFRAME * this.yVel;
 
             // This accounts for the game area looping right off screen...
-            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
-                                                        + 124) % 116) - 8;
-            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
-                                                        + 124) % 116) - 8;
+            this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) + 
+                (100 + (3 * offScreen))) % (100 + 2 * offScreen)) - offScreen;
+            this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) +
+                (100 + (3 * offScreen))) % (100 + 2 * offScreen)) - offScreen;
         }
 
         drawSelf() {
@@ -389,14 +424,10 @@ const Bullet = (function() {
             this.xVel = speed * xVelHat;
             this.yVel = speed * yVelHat;
 
-            // This is to be used for collision detection...
-            this.previousX = this.xPos;
-            this.previousY = this.yPos;
-
             // This is to be used as a cooldown for spawning...
             this.framesLeft = 180 * NUM_SUB_FRAMES;
 
-            // Used to cancel drawing and collision...
+            // Used when handeling collisions...
             this.alreadyCollided = false;
             this.explosionFramesLeft = 10;
 
@@ -413,15 +444,15 @@ const Bullet = (function() {
 
             if (!this.alreadyCollided) {
                 const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
-
-                this.previousX = this.xPos;
-                this.previousY = this.yPos;
+                const offScreen = 8
 
                 // This accounts for the game area looping right off screen...
-                this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) 
-                                                        + 124) % 116) - 8;
-                this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) 
-                                                        + 124) % 116) - 8;
+                this.xPos = ((this.xPos + (SEC_PER_SUBFRAME * this.xVel) + 
+                                        (100 + (3 * offScreen))) % 
+                                        (100 + 2 * offScreen)) - offScreen;
+                this.yPos = ((this.yPos + (SEC_PER_SUBFRAME * this.yVel) +
+                                        (100 + (3 * offScreen))) % 
+                                        (100 + 2 * offScreen)) - offScreen;
             }
 
             if (--this.framesLeft == 0)
@@ -482,49 +513,41 @@ const Bullet = (function() {
             }
         }
 
-        strongCollisionAsteroid(asteroid) {
-            const FUDGE = 1.001;
+        /* Algorithm: construct a convex hull using neighboring
+            vertices of the asteroids. Then test if the bullet
+            is inside the hull by solving for the coefficients
+            of the linear combination of the vertex vectors
+            which equal the bullet's displacement.*/
+        strongCollisionAsteroid(asteroid) {            
+            let displacement = [this.xPos - asteroid.xPos,
+                                this.yPos - asteroid.yPos];
+            let size = asteroid.size;
 
-            // Edge case: bullet is looping...
-            if (v2d_math.magnitude(
-                [this.xPos - this.previousX, this.yPos - this.previousY]
-            ) > 90) return false;
+
+
+            let v1 = [size * asteroid.outline[22],
+                        size * asteroid.outline[23]];
+            let v2 = [size * asteroid.outline[0],
+                        size * asteroid.outline[1]];
+            let c1 = v2d_math.cross(displacement, v2) / 
+                                            v2d_math.cross(v1, v2);
+            let c2 = v2d_math.cross(v1, displacement) / 
+                                            v2d_math.cross(v1, v2);
+            if ((c1 >= 0 && c2 >= 0) && c1 + c2 <= 1) return true;
 
             for (let i = 0; i < 11; ++i) {
-                if (v2d_math.doLineSegmentsCross(
-                    //b1
-                    [this.previousX, this.previousY],
-                    //m1
-                    [this.xPos - this.previousX, this.yPos - this.previousY],
-                    //b2
-                    [asteroid.xPos + (asteroid.size * 
-                            asteroid.outline[(2 * i)]),
-                        asteroid.yPos + (asteroid.size * 
-                            asteroid.outline[(2 * i) + 1])],
-                    //m2
-                    [asteroid.size * (asteroid.outline[(2 * i) + 2] - 
-                            asteroid.outline[(2 * i)]) * FUDGE,
-                        asteroid.size * (asteroid.outline[(2 * i) + 3] - 
-                            asteroid.outline[(2 * i) + 1]) * FUDGE]
-                )) return true;
+                v1 = [size * asteroid.outline[(2 * i)],
+                        size * asteroid.outline[(2 * i) + 1]];
+                v2 = [size * asteroid.outline[(2 * i) + 2],
+                        size * asteroid.outline[(2 * i) + 3]];
+                c1 = v2d_math.cross(displacement, v2) / 
+                                                v2d_math.cross(v1, v2)
+                c2 = v2d_math.cross(v1, displacement) / 
+                                                v2d_math.cross(v1, v2)
+                
+                if ((c1 >= 0 && c2 >= 0) && c1 + c2 <= 1) return true;
             }
-
-            return v2d_math.doLineSegmentsCross(
-                //b1
-                [this.previousX, this.previousY],
-                //m1
-                [this.xPos - this.previousX, this.yPos - this.previousY],
-                //b2
-                [asteroid.xPos + (asteroid.size * 
-                        asteroid.outline[22]),
-                    asteroid.yPos + (asteroid.size * 
-                        asteroid.outline[23])],
-                //m2
-                [asteroid.size * (asteroid.outline[0] - 
-                        asteroid.outline[(22)]) * FUDGE,
-                    asteroid.size * (asteroid.outline[1] - 
-                        asteroid.outline[23]) * FUDGE]
-                );
+            return false;
         }
     };
 })();
