@@ -382,6 +382,74 @@ const Player = (function() {
             canvas.ctx.stroke();
         }
 
+        static detectCollisions() {
+            if (flags.isGameActive) {
+                let player = Player.lives[0];
+
+                // check for collisions with asteroids...
+                if (Asteroid.weakCollisionDetect(player)) {
+                    // TODO... ship coming apart...
+                    console.log("hit");
+                }
+            }
+        }
+
+        strongCollisionAsteroid(asteroid) {
+
+            /* This function works by solving for three coefficients
+                (c1, c2, and c3) as functions of time described by the
+                matrix vector equation: 
+                     _       _  _  _      _             _
+                    |vx wx  0 || c1 |    | bx + (mx * t) |
+                    |vy wy  0 || c2 | == | by + (my * t) |
+                    |_1  1  1_||_c3_|    |_      1      _|
+                
+                Through some manipulations, we get three linear functions
+                of t for c1, c2, and c3. Because of the setup, 
+                c1 + c2 + c3 == 1. Thus, if all three are positive over
+                some interval inside [t == 0, t == 1], the line segment 
+                intersects the triangle with vertices: (0,0), (vx, vy),
+                (wx, wy). */
+            function doesLineSegInterceptTriangle(v1, v2, b, m) {
+                // Store a strategic cross product...
+                let temp1 = v2d_math.cross(v1, v2);
+                let flipSign = (temp1 < 0);
+
+                // Define some strategic lines:
+                // c1(t) = alph[0] + beta[0]t
+                // c2(t) = alph[1] + beta[1]t
+                // c3(t) = alph[2] + beta[2]t
+                const alph = new Array.length(3).fill(0);
+                const beta = new Array.length(3).fill(0);
+                alph[0] = v2d_math.cross(b, v2);
+                beta[0] = v2d_math.cross(m, v2);
+                alph[1] = v2d_math.cross(v1, b);
+                beta[1] = v2d_math.cross(v1, m);
+                alph[2] = temp1 - alph[0] - alph[1];
+                beta[2] = -(beta[0] + beta[1]);
+
+                const minima = [0];
+                const maxima = [1];
+                for (let i = 0; i < 2; i++) {
+                    let temp2 = [Infinity, -(alph[i]/beta[i]), -Infinity];
+                    if ((beta[i] < 0) == flipSign) temp2.pop();
+                    minima.push(temp2.pop());
+                    maxima.push(temp2.pop()); 
+                }
+
+                // True if there is a shared domain with a positive range...
+                return Math.max(...minima) < Math.min(...maxima);
+            }
+
+            let displacement = [this.xPos - asteroid.xPos,
+                                this.yPos - asteroid.yPos];
+            let size = asteroid.size;
+            let angle = this.angle;
+
+            
+
+        }
+
         static lives = [];
     }
 })();
@@ -582,7 +650,7 @@ const handlers = (function() {
                         }
                         break;
                 }
-            }
+            };
             that.receiveKeyUps = (event) => {
                 switch(event.key) {
                     case 'ArrowLeft':
@@ -595,10 +663,20 @@ const handlers = (function() {
                         that.activeInputs[2] = false;
                         break;
                 }
-            }
+            };
             
             window.addEventListener("keydown", that.receiveKeyDowns);
             window.addEventListener("keyup", that.receiveKeyUps);
+
+            that.pauseReceiving = (milleseconds) => {
+                window.removeEventListener("keydown", that.receiveKeyDowns);
+                window.removeEventListener("keydown", that.receiveKeyUps);
+
+                setTimeout( () => {
+                    window.addEventListener("keydown", that.receiveKeyDowns);
+                    window.addEventListener("keyup", that.receiveKeyUps);
+                }, milleseconds);
+            };
 
             //TODO... call something to initialize collision...
         }
@@ -643,6 +721,7 @@ const actions = {
 
     checkForCollisions() {
         Bullet.detectCollisions();
+        Player.detectCollisions();
     },
 
     drawStartScreen() {
@@ -756,5 +835,10 @@ const tests = [
     //2. spawn a player...
     function() {
         actions.initializePlayers();
+    },
+
+    //3. Pause inputs
+    function () {
+        Player.lives[0].controller.pauseReceiving(8000);
     }
 ]

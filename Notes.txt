@@ -65,3 +65,8 @@ MAJOR TODO...
 How do you account for the edge case of an object looping the screen during
 collision check... I think the solution is to just not and disable collision 
 in that specific instance...
+
+Bullet class can probably be made reusable if spawn offset is made a 
+parameter in the constructor and ring buffer is put inside a weak map 
+with the ship that spawned the bullet being it's key. It might help 
+defining a ring buffer class inside the scope to accomplish that.
