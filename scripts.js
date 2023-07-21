@@ -408,8 +408,9 @@ const Player = (function() {
                 of t for c1, c2, and c3. Because of the setup, 
                 c1 + c2 + c3 == 1. Thus, if all three are positive over
                 some interval inside [t == 0, t == 1], the line segment 
-                intersects the triangle with vertices: (0,0), (vx, vy),
-                (wx, wy). */
+                defined by initial position vector (bx, by) and slope 
+                vector (mx, my) intersects the triangle with vertices: 
+                (0,0), (vx, vy), and (wx, wy). */
             function doesLineSegInterceptTriangle(v1, v2, b, m) {
                 // Store a strategic cross product...
                 let temp1 = v2d_math.cross(v1, v2);
@@ -446,7 +447,7 @@ const Player = (function() {
             let size = asteroid.size;
             let angle = this.angle;
 
-            
+
 
         }
 
