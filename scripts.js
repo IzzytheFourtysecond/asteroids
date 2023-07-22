@@ -420,8 +420,8 @@ const Player = (function() {
                 // c1(t) = alph[0] + beta[0]t
                 // c2(t) = alph[1] + beta[1]t
                 // c3(t) = alph[2] + beta[2]t
-                const alph = new Array.length(3).fill(0);
-                const beta = new Array.length(3).fill(0);
+                const alph = new Array(3).fill(0);
+                const beta = new Array(3).fill(0);
                 alph[0] = v2d_math.cross(b, v2);
                 beta[0] = v2d_math.cross(m, v2);
                 alph[1] = v2d_math.cross(v1, b);
@@ -431,7 +431,7 @@ const Player = (function() {
 
                 const minima = [0];
                 const maxima = [1];
-                for (let i = 0; i < 2; i++) {
+                for (let i = 0; i < 3; i++) {
                     let temp2 = [Infinity, -(alph[i]/beta[i]), -Infinity];
                     if ((beta[i] < 0) == flipSign) temp2.pop();
                     minima.push(temp2.pop());
@@ -442,13 +442,49 @@ const Player = (function() {
                 return Math.max(...minima) < Math.min(...maxima);
             }
 
-            let displacement = [this.xPos - asteroid.xPos,
-                                this.yPos - asteroid.yPos];
+            // reused constants
+            let xDisplacement = this.xPos - asteroid.xPos;
+            let yDisplacement = this.yPos - asteroid.yPos;
             let size = asteroid.size;
-            let angle = this.angle;
 
+            // For applying a rotation matrix
+            let cosAngle = Math.cos(this.angle);
+            let sinAngle = Math.sin(this.angle);
+            const rotateX = (x, y) => (x * cosAngle) + (y * sinAngle);
+            const rotateY = (x, y) => (y * cosAngle) - (x * sinAngle);
 
+            let v1 = [size * asteroid.outline[22],
+                        size * asteroid.outline[23]];
+            let v2 = [size * asteroid.outline[0],
+                        size * asteroid.outline[1]];
+            let i = 0;
+            do {
+                //line seg 1: left side
+                let b = [xDisplacement + rotateX(-0.5, 1),
+                        yDisplacement + rotateY(-0.5, 1)];
+                let m = [rotateX(0.5, -2), rotateY(0.5, -2)];
+                if (doesLineSegInterceptTriangle(v1, v2, b, m)) return true;
+                
+                //line seg 2: right side
+                b = [xDisplacement + rotateX(0, -1),
+                    yDisplacement + rotateY(0, -1)];
+                m = [rotateX(0.5, 2), rotateY(0.5, 2)];
+                if (doesLineSegInterceptTriangle(v1, v2, b, m)) return true;
+                
+                //line seg 3: back side
+                b = [xDisplacement + rotateX(-0.4, 0.6),
+                    yDisplacement + rotateY(-0.4, 0.6)];
+                m = [rotateX(0.8, 0), rotateY(0.8, 0)];
+                if (doesLineSegInterceptTriangle(v1, v2, b, m)) return true;
 
+                // prepare for next loop:
+                v1 = [size * asteroid.outline[(2*i)],
+                        size * asteroid.outline[(2*i) + 1]];
+                v2 = [size * asteroid.outline[(2*i) + 2],
+                        size * asteroid.outline[(2*i) + 3]];
+                ++i;
+            } while (i < 11);
+            return false;
         }
 
         static lives = [];
