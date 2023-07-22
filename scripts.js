@@ -63,41 +63,77 @@ const canvas = (function() {
 /* The process: other assets specify their desired particle effects. 
     However, this class through a private class or several actually 
     creates the effects and then stores and draws them.
+
+    Format for defining particles:
+         {type: "particle type", options: {...}}
     
-    Each effect is stored as an iterator.*/
+    Each effect is stored as an iterator. */
 const ParticleEffectsManager = (function() {
 
-    // Well shoot a linked list is ideal for this...
+    /* Line options format:
+        {   
+            // First end of line segment... ( Required )
+            b1x: number,
+            b1y: number,
+            
+            // Second end of line segment... ( Required )
+            b2x: number,
+            b2y: number,
+
+            // how far along the line the pivot is... ( Required )
+            t: number, // if t is in [0, 1], the pivot is inside the line
+
+            // velocity properties... ( Required )
+            xVel: number,
+            yVel: number,
+            angularVel: number,
+
+            // frames to draw... ( Required )
+            framesLeft: number 
+        }
+    */
+    class lineParticle {
+        constructor(options) {
+            this.xEnd1 = options.b1x;
+            this.yEnd1 = options.b1y;
+            this.xEnd2 = options.b2x;
+            this.yEnd2 = options.b2y;
+
+            this.xPivot = t * (this.xEnd2 - this.xEnd1) + this.xEnd1;
+            this.yPivot = t * (this.yEnd2 - this.yEnd1) + this.yEnd1;
+
+            this.xVel = options.xVel;
+            this.yVel = options.yVel;
+            this.angularVel = options.angularVel;
+
+            this.framesLeft = options.framesLeft;
+        }
+
+
+    }
+
+    // Linked list that is looped through...
     let effectsToDraw = {
         iterator: null,
         next: null
     };
 
-    class lineParticle {
-        constructor(options) {
+    return {
+        createEffect(particleDefinition) {
+            let effect = null;
+            switch (particleDefinition.type) {
+                case "line":
+                    effect = new lineParticle(particleDefinition.options);
+                    break;
+                // TODO... add point partricle
+                default:
+                    if (flags.DEBUG) console.log("Invalid effect type.");
+                    return;
+            }
 
-            //To determine from options
-            this.xPivot;
-            this.yPivot;
-            this.xEnd1;
-            this.yEnd1;
-            this.xEnd2;
-            this.yEnd2;
-
-            this.xVel;
-            this.yVel;
-            this.angularVel;
+            let newNode = {iterator: effect, next: effectsToDraw};
+            effectsToDraw = newNode;
         }
-    }
-
-    return class ParticleEffectsManager {
-        // addEffect(effectIterator) {
-        //     let newNode = {
-        //         iterator: effectIterator,
-        //         next: effectsToDraw
-        //     }
-        //     effectsToDraw = newNode;
-        // }
     }
 })()
 
