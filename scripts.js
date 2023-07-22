@@ -47,7 +47,7 @@ const canvas = (function() {
         width: canvas.width,
         height: canvas.height,
 
-        //convert relative lengths to pixel lengths
+        // convert relative lengths to pixel lengths
         xPixelsOf(relativeLength) {
             return (0.01 * relativeLength) * canvas.width;
         },
@@ -58,11 +58,48 @@ const canvas = (function() {
 })();
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-/* Define animations */
+/* Define particle effects */
 
-const ParticleEffects = {
-    // TODO...
-}
+/* The process: other assets specify their desired particle effects. 
+    However, this class through a private class or several actually 
+    creates the effects and then stores and draws them.
+    
+    Each effect is stored as an iterator.*/
+const ParticleEffectsManager = (function() {
+
+    // Well shoot a linked list is ideal for this...
+    let effectsToDraw = {
+        iterator: null,
+        next: null
+    };
+
+    class lineParticle {
+        constructor(options) {
+
+            //To determine from options
+            this.xPivot;
+            this.yPivot;
+            this.xEnd1;
+            this.yEnd1;
+            this.xEnd2;
+            this.yEnd2;
+
+            this.xVel;
+            this.yVel;
+            this.angularVel;
+        }
+    }
+
+    return class ParticleEffectsManager {
+        // addEffect(effectIterator) {
+        //     let newNode = {
+        //         iterator: effectIterator,
+        //         next: effectsToDraw
+        //     }
+        //     effectsToDraw = newNode;
+        // }
+    }
+})()
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define game assets...*/
