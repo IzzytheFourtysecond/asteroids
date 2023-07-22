@@ -2,7 +2,7 @@
 
 // Important note: my tab size is equivalent to four spaces...
 
-/* Define game assets */
+/* Define environment helper resources. */
 const flags = {
     DEBUG: false,
     isGameActive: false
@@ -56,6 +56,16 @@ const canvas = (function() {
         }
     }
 })();
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/* Define animations */
+
+const ParticleEffects = {
+    // TODO...
+}
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/* Define game assets...*/
 
 const Asteroid = (function() {
 
@@ -265,18 +275,25 @@ const Player = (function() {
             this.isAccelerating = false;
             this.controller = null;
 
+            // Set to true briefly in the event of a collision.
+            this.pauseDrawing = false;
+
             /* The following is given by 
                 handlers.receiveMovementInputs():
                 
                 this.controller = {
                     activeInputs = [false, false, false],
                     receiveKeyDowns = (event) => {...},
-                    receiveKeyUps = (event) => {...}
+                    receiveKeyUps = (event) => {...},
+                    pauseReceiving = (milleseconds) => {...}
                 }
             */
         }
 
         updateKinematics() {
+            // skips updating if ship just exploded...
+            if (this.pauseDrawing) return;
+
             const SEC_PER_SUBFRAME = 1 / (FRAME_RATE * NUM_SUB_FRAMES);
             const offScreen = 2;
 
@@ -308,6 +325,8 @@ const Player = (function() {
         }
 
         drawSelf() {
+            if (this.pauseDrawing) return;
+
             let xPos = this.xPos;
             let yPos = this.yPos;
             let angle = this.angle;
@@ -357,7 +376,7 @@ const Player = (function() {
                 canvas.ctx.fill();
             }
 
-            if (!flags.DEBUG) return;
+            if (!flags.DEBUG || !this.controller) return;
 
             // orange is +x-direction
             canvas.ctx.beginPath();
@@ -386,12 +405,40 @@ const Player = (function() {
             if (flags.isGameActive) {
                 let player = Player.lives[0];
 
+                // Don't do collision detection on something not visible...
+                if (player.pauseDrawing) return;
+
                 // check for collisions with asteroids...
                 if (Asteroid.weakCollisionDetect(player)) {
-                    // TODO... ship coming apart...
-                    console.log("hit");
+                    player.selfDestruct();
                 }
             }
+        }
+
+        /* Should only be called by Player.lives[0]. */
+        selfDestruct() {
+            const milleseconds = 3000;
+            this.controller.pauseReceiving(milleseconds);
+            this.pauseDrawing = true;
+            setTimeout(() => {
+                Player.lives[0].pauseDrawing = false;
+            }, milleseconds);
+
+            this.xPos = 50;
+            this.yPos = 50;
+            this.xVel = 0;
+            this.yVel = 0;
+            this.xAcc = 0;
+            this.yAcc = 0;
+
+            // TODO... ship coming apart callback...
+
+            //Update lives:
+            if (Player.lives.length > 1) {
+                Player.lives.pop();
+                return;
+            }
+            //TODO... Deal with ending game potentially down here...
         }
 
         strongCollisionAsteroid(asteroid) {
@@ -827,7 +874,12 @@ const actions = {
         Player.lives.push(new Player());
         handlers.receiveMovementInputs();
 
-        //TODO: more lives in corner later...
+        // start with three more lives in the corner later...
+        for (let i = 0; i < 3; ++i) {
+            Player.lives.push(new Player());
+            Player.lives[i + 1].xPos = 5 + (2 * i);
+            Player.lives[i + 1].yPos = 10;
+        }
     }
 };
 
