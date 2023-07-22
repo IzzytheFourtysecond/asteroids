@@ -98,18 +98,47 @@ const ParticleEffectsManager = (function() {
             this.yEnd1 = options.b1y;
             this.xEnd2 = options.b2x;
             this.yEnd2 = options.b2y;
-
-            this.xPivot = t * (this.xEnd2 - this.xEnd1) + this.xEnd1;
-            this.yPivot = t * (this.yEnd2 - this.yEnd1) + this.yEnd1;
-
             this.xVel = options.xVel;
             this.yVel = options.yVel;
-            this.angularVel = options.angularVel;
+
+            // This is to rotate the particle...
+            this.xPivot = t * (this.xEnd2 - this.xEnd1) + this.xEnd1;
+            this.yPivot = t * (this.yEnd2 - this.yEnd1) + this.yEnd1;
+            let angleChange =  options.angularVel / FRAME_RATE;
+            let cosAngle = Math.cos(angleChange);
+            let sinAngle = Math.sin(angleChange);
+            this.rotateX = (x, y) => (x * cosAngle) + (y * sinAngle);
+            this.rotateY = (x, y) => (y * cosAngle) - (x * sinAngle);
 
             this.framesLeft = options.framesLeft;
         }
 
+        next() {
+            // translational update
+            this.xEnd1 += this.xVel;
+            this.xEnd2 += this.xVel;
+            this.xPivot += this.xVel;
+            this.yEnd1 += this.yVel;
+            this.yEnd2 += this.yVel;
+            this.yPivot += this.yVel;
+            // rotational update
+            this.xEnd1 = this.xPivot + this.rotateX(this.xEnd1 - 
+                this.xPivot, this.yEnd1 - this.yPivot);
+            this.yEnd1 = this.yPivot + this.rotateY(this.xEnd1 - 
+                this.xPivot, this.yEnd1 - this.yPivot);
+            this.xEnd2 = this.xPivot + this.rotateX(this.xEnd2 - 
+                this.xPivot, this.yEnd2 - this.yPivot);
+            this.yEnd2 = this.yPivot + this.rotateY(this.xEnd2 - 
+                this.xPivot, this.yEnd2 - this.yPivot);
+            
+            --this.framesLeft;
 
+            return {value: this, done: this.framesLeft < 0};
+        }
+
+        draw() {
+            //TODO... implement this after work...
+        }
     }
 
     // Linked list that is looped through...
@@ -133,7 +162,9 @@ const ParticleEffectsManager = (function() {
 
             let newNode = {iterator: effect, next: effectsToDraw};
             effectsToDraw = newNode;
-        }
+        },
+
+
     }
 })()
 
