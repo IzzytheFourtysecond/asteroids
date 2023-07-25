@@ -102,8 +102,10 @@ const ParticleEffectsManager = (function() {
             this.yVel = options.yVel;
 
             // This is to rotate the particle...
-            this.xPivot = t * (this.xEnd2 - this.xEnd1) + this.xEnd1;
-            this.yPivot = t * (this.yEnd2 - this.yEnd1) + this.yEnd1;
+            this.xPivot = options.t * (this.xEnd2 - this.xEnd1) + 
+                                                            this.xEnd1;
+            this.yPivot = options.t * (this.yEnd2 - this.yEnd1) + 
+                                                            this.yEnd1;
             let angleChange =  options.angularVel / FRAME_RATE;
             let cosAngle = Math.cos(angleChange);
             let sinAngle = Math.sin(angleChange);
@@ -114,13 +116,14 @@ const ParticleEffectsManager = (function() {
         }
 
         next() {
+            const SEC_PER_FRAME = 1 / (FRAME_RATE);
             // translational update
-            this.xEnd1 += this.xVel;
-            this.xEnd2 += this.xVel;
-            this.xPivot += this.xVel;
-            this.yEnd1 += this.yVel;
-            this.yEnd2 += this.yVel;
-            this.yPivot += this.yVel;
+            this.xEnd1 += this.xVel * SEC_PER_FRAME;
+            this.xEnd2 += this.xVel * SEC_PER_FRAME;
+            this.xPivot += this.xVel * SEC_PER_FRAME;
+            this.yEnd1 += this.yVel * SEC_PER_FRAME;
+            this.yEnd2 += this.yVel * SEC_PER_FRAME;
+            this.yPivot += this.yVel * SEC_PER_FRAME;
             // rotational update
             this.xEnd1 = this.xPivot + this.rotateX(this.xEnd1 - 
                 this.xPivot, this.yEnd1 - this.yPivot);
@@ -137,14 +140,25 @@ const ParticleEffectsManager = (function() {
         }
 
         draw() {
-            //TODO... implement this after work...
+            canvas.ctx.strokeStyle = "white";
+            canvas.ctx.lineWidth = 6;
+
+            canvas.ctx.beginPath();
+            canvas.ctx.moveTo(canvas.xPixelsOf(this.xEnd1),
+                            canvas.yPixelsOf(this.yEnd1));
+            canvas.ctx.lineTo(canvas.xPixelsOf(this.xEnd2),
+                            canvas.yPixelsOf(this.yEnd2));
+            canvas.ctx.stroke();
         }
     }
 
     // Linked list that is looped through...
     let effectsToDraw = {
         iterator: null,
-        next: null
+        next: {
+            iterator: null,
+            next: null
+        }
     };
 
     return {
@@ -160,13 +174,31 @@ const ParticleEffectsManager = (function() {
                     return;
             }
 
-            let newNode = {iterator: effect, next: effectsToDraw};
-            effectsToDraw = newNode;
+            let newNode = {iterator: effect, next: effectsToDraw.next};
+            effectsToDraw.next = newNode;
         },
 
+        drawEffects() {
+            let previous = effectsToDraw;
+            let current = effectsToDraw.next;
+            let temp = null;
 
+            while (current.next) {
+                temp = current.iterator.next();
+                temp.value.draw();
+                if (temp.done) {
+                    previous.next = current.next;
+                    current.next = null; // maybe helps garbage collection
+                    current = previous.next;
+                }
+                else {
+                    previous = current;
+                    current = current.next;
+                }
+            }
+        }
     }
-})()
+})();
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 /* Define game assets...*/
@@ -521,6 +553,90 @@ const Player = (function() {
 
         /* Should only be called by Player.lives[0]. */
         selfDestruct() {
+
+            // ship coming apart callback...
+            let rotateX = (x, y, angle) => (x * Math.cos(angle)) + 
+                                                    (y * Math.sin(angle));
+            let rotateY = (x, y, angle) => (y * Math.cos(angle)) - 
+                                                    (x * Math.sin(angle));
+            ParticleEffectsManager.createEffect({
+                type: "line",
+                options: {   
+                    b1x: this.xPos + rotateX(-0.5, 1, this.angle),
+                    b1y: this.yPos + rotateY(-0.5, 1, this.angle),
+                    b2x: this.xPos + rotateX(-0.25, 0, this.angle),
+                    b2y: this.yPos + rotateY(-0.25, 0, this.angle),
+                    t: 0.5,
+                    xVel: this.xVel + rotateX(2, 0, 
+                                            this.angle + (0.5 * Math.PI)),
+                    yVel: this.yVel + rotateY(2, 0, 
+                                            this.angle + (0.5 * Math.PI)),
+                    angularVel: 1,
+                    framesLeft: 600
+                }
+            });
+            ParticleEffectsManager.createEffect({
+                type: "line",
+                options: {   
+                    b1x: this.xPos + rotateX(-0.25, 0, this.angle),
+                    b1y: this.yPos + rotateY(-0.25, 0, this.angle),
+                    b2x: this.xPos + rotateX(0, -1, this.angle),
+                    b2y: this.yPos + rotateY(0, -1, this.angle),
+                    t: 0.5,
+                    xVel: this.xVel + rotateX(2, 0, 
+                                            this.angle + (0.5 * Math.PI)),
+                    yVel: this.yVel + rotateY(2, 0, 
+                                            this.angle + (0.5 * Math.PI)),
+                    angularVel: 1,
+                    framesLeft: 600
+                }
+            });
+            ParticleEffectsManager.createEffect({
+                type: "line",
+                options: {   
+                    b1x: this.xPos + rotateX(0.5, 1, this.angle),
+                    b1y: this.yPos + rotateY(0.5, 1, this.angle),
+                    b2x: this.xPos + rotateX(0.25, 0, this.angle),
+                    b2y: this.yPos + rotateY(0.25, 0, this.angle),
+                    t: 0.5,
+                    xVel: this.xVel + rotateX(2, 0, this.angle),
+                    yVel: this.yVel + rotateY(2, 0, this.angle),
+                    angularVel: -1,
+                    framesLeft: 600
+                }
+            });
+            ParticleEffectsManager.createEffect({
+                type: "line",
+                options: {   
+                    b1x: this.xPos + rotateX(0.25, 0, this.angle),
+                    b1y: this.yPos + rotateY(0.25, 0, this.angle),
+                    b2x: this.xPos + rotateX(0, -1, this.angle),
+                    b2y: this.yPos + rotateY(0, -1, this.angle),
+                    t: 0.5,
+                    xVel: this.xVel + rotateX(2, 0, this.angle),
+                    yVel: this.yVel + rotateY(2, 0, this.angle),
+                    angularVel: -1,
+                    framesLeft: 600
+                }
+            });
+            ParticleEffectsManager.createEffect({
+                type: "line",
+                options: {   
+                    b1x: this.xPos + rotateX(-0.4, 0.6, this.angle),
+                    b1y: this.yPos + rotateY(-0.4, 0.6, this.angle),
+                    b2x: this.xPos + rotateX(0.4, 0.6, this.angle),
+                    b2y: this.yPos + rotateY(0.4, 0.6, this.angle),
+                    t: 0.5,
+                    xVel: this.xVel + rotateX(2, 0, 
+                                            this.angle + (1.5 * Math.PI)),
+                    yVel: this.yVel + rotateY(2, 0,
+                                            this.angle + (1.5 * Math.PI)),
+                    angularVel: 0,
+                    framesLeft: 600
+                }
+            });
+
+            // Pause drawing...
             const milleseconds = 3000;
             this.controller.pauseReceiving(milleseconds);
             this.pauseDrawing = true;
@@ -534,8 +650,6 @@ const Player = (function() {
             this.yVel = 0;
             this.xAcc = 0;
             this.yAcc = 0;
-
-            // TODO... ship coming apart callback...
 
             //Update lives:
             if (Player.lives.length > 1) {
@@ -886,10 +1000,13 @@ const actions = {
             asteroid.drawSelf();
         });
 
-        //TODO: bullets and ufos
+        // TODO: ufos
         Bullet.drawBullets();
 
-        //Should be drawn second to last
+        // Particles
+        ParticleEffectsManager.drawEffects();
+
+        // Should be drawn second to last
         Player.lives.forEach( (ship) => {
             ship.drawSelf();
         });
